@@ -3,8 +3,9 @@ import re
 import os
 from PIL import Image
 
-source_directory = "/Users/xharlie/datasets/BosphorusDB"
-out_dirctory = "/Users/xharlie/datasets/BosphorusDB_extracted"
+HOME = os.path.expanduser("~")
+source_directory = HOME + "/datasets/BosphorusDB"
+out_dirctory = HOME + "/datasets/BosphorusDB_extracted"
 SIZE = 182
 
 def main():
