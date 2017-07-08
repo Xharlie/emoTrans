@@ -16,30 +16,31 @@ from tensorflow.python.ops import data_flow_ops
 
 HOME = os.path.expanduser("~")
 
-args = {
-    'model_def' : 'models.inception_resnet_v1',
-    'logs_base_dir' : '~/dev/emoTrans/',
-    'seed': 666,
-    'data_dir' : HOME + "/datasets/BosphorusDB/train",
-    'val_dir' : HOME + "/datasets/BosphorusDB/val",
-    'random_crop' : True,
-    'image_size' : 160,
-    'batch_size' : 90,
-    'keep_probability' : 1.0,
-    'embedding_size' : 200,
-    'weight_decay' : 0.1,
-    'learning_rate_decay_epochs' : 1.0,
-    'epoch_size' : 1000,
-    'learning_rate_decay_factor' : 1.0,
-    'optimizer' : 'ADAGRAD',
-    'moving_average_decay' : 0.9999,
-    'gpu_memory_fraction' : 1.0,
-    'pretrained_model' : None,
-    'max_nrof_epochs' : 500,
-    'people_per_batch' : None,
-    'images_per_person' : None,
-    'validation_batch_num' : 3
-}
+class args():
+    model_def =  'models.inception_resnet_v1_2pic'
+    logs_base_dir = '~/dev/emoTrans/'
+    seed = 666
+    data_dir = HOME + "/datasets/BosphorusDB/train"
+    val_dir = HOME + "/datasets/BosphorusDB/val"
+    random_crop = True
+    image_size = 160
+    batch_size = 90
+    keep_probability = 1.0
+    embedding_size = 200
+    weight_decay = 0.1
+    learning_rate_decay_epochs = 1.0
+    learning_rate = 0.1
+    epoch_size = 1000
+    learning_rate_decay_factor = 1.0
+    optimizer = 'ADAGRAD'
+    moving_average_decay = 0.9999
+    gpu_memory_fraction = 1.0
+    pretrained_model = None
+    max_nrof_epochs = 500
+    people_per_batch = None
+    images_per_person = None
+    validation_batch_num = 3
+    learning_rate_schedule_file = None
 
 
 def main():
@@ -61,42 +62,37 @@ def main():
 
         phase_train_placeholder = tf.placeholder(tf.bool, name='phase_train')
 
-        image_paths_placeholder = tf.placeholder(tf.string, shape=(None, 2), name='image_paths')
+        image_paths_pair_placeholder = tf.placeholder(tf.string, name='image_source_paths')
 
-        labels_placeholder = tf.placeholder(tf.int64, name='labels')
+        labels_placeholder = tf.placeholder(tf.float32, name='labels')
 
         input_queue = data_flow_ops.FIFOQueue(capacity=100000,
-                                              dtypes=[tf.string, tf.int64],
-                                              shapes=[(2,), (2,)],
+                                              dtypes=[tf.string, tf.float32],
+                                              shapes=[(2,), (1,)],
                                               shared_name=None, name=None)
-        enqueue_op = input_queue.enqueue_many([image_paths_placeholder, labels_placeholder])
+        enqueue_op = input_queue.enqueue_many([image_paths_pair_placeholder, labels_placeholder])
 
         nrof_preprocess_threads = 4
         images_pair_and_labels = []
-
         for _ in range(nrof_preprocess_threads):
-            filename_pairs, label = input_queue.dequeue()
-            image_pairs = []
-            for pair in tf.unstack(filename_pairs):
-                processed_pair = []
-                for i in range(2):
-                    file_contents = tf.read_file(pair[i])
-                    image = tf.image.decode_png(file_contents)
+            filenames, label = input_queue.dequeue()
+            processed_pair = []
+            for filename in tf.unstack(filenames):
+                file_contents = tf.read_file(filename)
+                image = tf.image.decode_png(file_contents)
 
-                    if args.random_crop:
-                        image = tf.random_crop(image, [args.image_size, args.image_size, 3])
-                    else:
-                        image = tf.image.resize_image_with_crop_or_pad(image, args.image_size, args.image_size)
-                    #     WE MAY NOT WANT TO FLIP
-                    # if args.random_flip:
-                    #     image = tf.image.random_flip_left_right(image)
+                if args.random_crop:
+                    image = tf.random_crop(image, [args.image_size, args.image_size, 3])
+                else:
+                    image = tf.image.resize_image_with_crop_or_pad(image, args.image_size, args.image_size)
+                #     WE MAY NOT WANT TO FLIP
+                # if args.random_flip:
+                #     image = tf.image.random_flip_left_right(image)
 
-                    # pylint: disable=no-member
-                    image.set_shape((args.image_size, args.image_size, 3))
-                    processed_pair.append(tf.image.per_image_standardization(image))
-                image_pairs.append(processed_pair)
-            images_pair_and_labels.append([image_pairs[0],image_pairs[1], label])
-
+                # pylint: disable=no-member
+                image.set_shape((args.image_size, args.image_size, 3))
+                processed_pair.append(tf.image.per_image_standardization(image))
+            images_pair_and_labels.append([[processed_pair[0]], [processed_pair[1]], label])
         source_batch, target_batch, labels_batch = tf.train.batch_join(
             images_pair_and_labels, batch_size=batch_size_placeholder,
             shapes=[(args.image_size, args.image_size, 3),
@@ -156,7 +152,7 @@ def main():
                 step = sess.run(global_step, feed_dict=None)
                 epoch = step // args.epoch_size
                 # Train for one epoch
-                train(args, sess, train_set, epoch, image_paths_placeholder,
+                train(args, sess, train_set, epoch, image_paths_pair_placeholder,
                       labels_placeholder, labels_batch,batch_size_placeholder,
                       learning_rate_placeholder, phase_train_placeholder, enqueue_op,
                       input_queue, global_step,embeddings, total_loss, train_op,
@@ -169,7 +165,7 @@ def main():
 
                 # Evaluate on itself
                 if args.val_dir:
-                    evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder,labels_batch,
+                    evaluate(sess, enqueue_op, image_paths_pair_placeholder, labels_placeholder,labels_batch,
                              phase_train_placeholder, batch_size_placeholder, embeddings, trans_loss,
                              labels_batch, args.val_dir, args.lfw_batch_size, log_dir,
                              step, summary_writer)

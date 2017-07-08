@@ -65,7 +65,7 @@ def sample_pair(dataset, batch_size, people_per_batch):
                 dataset[class_index].image_paths[indice1], dataset[class_index].image_paths[indice2])
             image_pair_paths += image_paths_for_class
         i += 1
-    return
+    return image_pair_paths, label_calculated_result
 
 def load_facscodes():
     codes_array = {}
@@ -81,7 +81,7 @@ def calculate_labels(codes_array, image_path1, image_path2):
     return calculate_codes_2 - calculate_codes_1
 
 def embedding_translate(image_path):
-    codes = np.zeros(shape = (200))
+    codes = np.zeros(shape = (200), dtype='float32')
     dimensionList = image_path.split("+")
     for code_expression in dimensionList:
         code = int(re.findall('\d+', code_expression)[0])
@@ -133,7 +133,7 @@ def get_learning_rate_from_file(filename, epoch):
 def trans_loss(embeddings, labels_batch):
     #Calculate the trans loss
     with tf.variable_scope('trans_loss'):
-        dist = tf.reduce_sum(tf.square(tf.subtract(embeddings, labels_batch)), 1)
+        dist = tf.reduce_sum(tf.square(tf.subtract(embeddings, labels_batch)))
     return dist
 
 

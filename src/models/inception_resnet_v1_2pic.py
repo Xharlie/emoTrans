@@ -128,7 +128,7 @@ def reduction_b(net):
                         tower_conv2_2, tower_pool], 3)
     return net
   
-def inference(images, keep_probability, phase_train=True, 
+def inference(source_batch, target_batch, keep_probability, phase_train=True,
               bottleneck_layer_size=128, weight_decay=0.0, reuse=None):
     batch_norm_params = {
         # Decay for the moving averages.
@@ -146,11 +146,11 @@ def inference(images, keep_probability, phase_train=True,
                         weights_regularizer=slim.l2_regularizer(weight_decay),
                         normalizer_fn=slim.batch_norm,
                         normalizer_params=batch_norm_params):
-        return inception_resnet_v1(images, is_training=phase_train,
+        return inception_resnet_v1_2pic(source_batch, target_batch, is_training=phase_train,
               dropout_keep_prob=keep_probability, bottleneck_layer_size=bottleneck_layer_size, reuse=reuse)
 
 
-def inception_resnet_v1(inputs, is_training=True,
+def inception_resnet_v1_2pic(inputs_source1, inputs_source2, is_training=True,
                         dropout_keep_prob=0.8,
                         bottleneck_layer_size=128,
                         reuse=None, 
@@ -170,28 +170,49 @@ def inception_resnet_v1(inputs, is_training=True,
     """
     end_points = {}
   
-    with tf.variable_scope(scope, 'InceptionResnetV1', [inputs], reuse=reuse):
+    with tf.variable_scope(scope, 'InceptionResnetV1_2pic', [inputs_source1, inputs_source2], reuse=reuse):
         with slim.arg_scope([slim.batch_norm, slim.dropout],
                             is_training=is_training):
             with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
                                 stride=1, padding='SAME'):
       
                 # 149 x 149 x 32
-                net = slim.conv2d(inputs, 32, 3, stride=2, padding='VALID',
-                                  scope='Conv2d_1a_3x3')
-                end_points['Conv2d_1a_3x3'] = net
+                net_1 = slim.conv2d(inputs_source1, 32, 3, stride=2, padding='VALID',
+                                  scope='Conv2d_s1_1a_3x3')
+                end_points['Conv2d_1a_3x3'] = net_1
                 # 147 x 147 x 32
-                net = slim.conv2d(net, 32, 3, padding='VALID',
-                                  scope='Conv2d_2a_3x3')
-                end_points['Conv2d_2a_3x3'] = net
+                net_1 = slim.conv2d(net_1, 32, 3, padding='VALID',
+                                  scope='Conv2d_s1_2a_3x3')
+                end_points['Conv2d_2a_3x3'] = net_1
                 # 147 x 147 x 64
-                net = slim.conv2d(net, 64, 3, scope='Conv2d_2b_3x3')
-                end_points['Conv2d_2b_3x3'] = net
+                net_1 = slim.conv2d(net_1, 64, 3, scope='Conv2d_s1_2b_3x3')
+                end_points['Conv2d_s1_2b_3x3'] = net_1
                 # 73 x 73 x 64
-                net = slim.max_pool2d(net, 3, stride=2, padding='VALID',
-                                      scope='MaxPool_3a_3x3')
-                end_points['MaxPool_3a_3x3'] = net
+                net_1 = slim.max_pool2d(net_1, 3, stride=2, padding='VALID',
+                                      scope='MaxPool_s1_3a_3x3')
+                end_points['MaxPool_s1_3a_3x3'] = net_1
                 # 73 x 73 x 80
+
+
+                # 149 x 149 x 32
+                net_2 = slim.conv2d(inputs_source2, 32, 3, stride=2, padding='VALID',
+                                  scope='Conv2d_s2_1a_3x3')
+                end_points['Conv2d_s2_1a_3x3'] = net_2
+                # 147 x 147 x 32
+                net_2 = slim.conv2d(net_2, 32, 3, padding='VALID',
+                                  scope='Conv2d_s2_2a_3x3')
+                end_points['Conv2d_s2_2a_3x3'] = net_2
+                # 147 x 147 x 64
+                net_2 = slim.conv2d(net_2, 64, 3, scope='Conv2d_s2_2b_3x3')
+                end_points['Conv2d_s2_2b_3x3'] = net_2
+                # 73 x 73 x 64
+                net_2 = slim.max_pool2d(net_2, 3, stride=2, padding='VALID',
+                                      scope='MaxPool_s2_3a_3x3')
+                end_points['MaxPool_s2_3a_3x3'] = net_2
+                # 73 x 73 x 80
+
+                net = tf.concat([net_1, net_2], 3)
+
                 net = slim.conv2d(net, 80, 1, padding='VALID',
                                   scope='Conv2d_3b_1x1')
                 end_points['Conv2d_3b_1x1'] = net
