@@ -32,13 +32,12 @@ def get_dataset(paths):
             facedir = os.path.join(path_exp, class_name)
             if os.path.isdir(facedir):
                 images = os.listdir(facedir)
-                image_paths = [os.path.join(facedir, img) for img in images]
+                image_paths = [os.path.join(facedir, img) for img in images if img[-3:] == 'png']
                 dataset.append(ImageClass(class_name, image_paths))
-
     return dataset
 
 
-def sample_pair(dataset, batch_size, people_per_batch):
+def sample_pair(embedding_size, dataset, batch_size, people_per_batch):
     nrof_classes = len(dataset)
     if people_per_batch is None or nrof_classes < people_per_batch:
         people_per_batch = min(nrof_classes, batch_size)
@@ -48,24 +47,24 @@ def sample_pair(dataset, batch_size, people_per_batch):
     np.random.shuffle(class_indices)
     avg_pair_per_people = batch_size / people_per_batch
     i = 0
-    image_pair_paths = []
+    image_source_paths = []
+    image_target_paths = []
     label_calculated_result = []
     codes_array = load_facscodes()
     # Sample images from these classes until we have enough
-    while len(image_pair_paths) < batch_size:
+    while len(image_source_paths) < batch_size:
         class_index = class_indices[i]
         nrof_images_in_class = len(dataset[class_index])
-        pair_per_people = min(batch_size - len(image_pair_paths), avg_pair_per_people)
+        pair_per_people = min(batch_size - len(image_source_paths), avg_pair_per_people)
         for j in range(pair_per_people):
             indice1 = random.randint(0, nrof_images_in_class - 1)
             indice2 = random.randint(0, nrof_images_in_class - 1)
-            image_paths_for_class = [dataset[class_index].image_paths[indice1],
-                                     dataset[class_index].image_paths[indice2]]
-            label_calculated_result += calculate_labels(codes_array,
-                dataset[class_index].image_paths[indice1], dataset[class_index].image_paths[indice2])
-            image_pair_paths += image_paths_for_class
+            image_source_paths += [dataset[class_index].image_paths[indice1]]
+            image_target_paths += [dataset[class_index].image_paths[indice2]]
+            label_calculated_result += [calculate_labels(embedding_size, codes_array,
+                dataset[class_index].image_paths[indice1], dataset[class_index].image_paths[indice2])]
         i += 1
-    return image_pair_paths, label_calculated_result
+    return image_source_paths, image_target_paths, label_calculated_result
 
 def load_facscodes():
     codes_array = {}
@@ -75,22 +74,25 @@ def load_facscodes():
             codes_array[pair[0].strip()] = pair[1].strip()
     return codes_array
 
-def calculate_labels(codes_array, image_path1, image_path2):
-    calculate_codes_1 = embedding_translate(image_path1)
-    calculate_codes_2 = embedding_translate(image_path2)
+def calculate_labels(embedding_size, codes_array, image_path1, image_path2):
+    key1 = image_path1.split("/")[-1].split(".")[0]
+    key2 = image_path2.split("/")[-1].split(".")[0]
+    # print image_path1, key1, image_path2, key2
+    calculate_codes_1 = embedding_translate(embedding_size, codes_array[key1])
+    calculate_codes_2 = embedding_translate(embedding_size, codes_array[key2])
     return calculate_codes_2 - calculate_codes_1
 
-def embedding_translate(image_path):
-    codes = np.zeros(shape = (200), dtype='float32')
-    dimensionList = image_path.split("+")
+
+def embedding_translate(embedding_size, facs):
+    codes = np.zeros(shape = (embedding_size), dtype='float32')
+    dimensionList = facs.split("+")
     for code_expression in dimensionList:
         code = int(re.findall('\d+', code_expression)[0])
+        if code == '0' : continue
         alphabet = code_expression.split(str(code))
         pos = 0
         strength = 0
-        if len(alphabet) == 1:
-            strength = alphabet[0]
-        elif alphabet[0] == 'L':
+        if alphabet[0] == 'L':
             pos = 1
             strength = alphabet[1]
         elif alphabet[0] == 'R':
@@ -98,13 +100,17 @@ def embedding_translate(image_path):
             strength = alphabet[1]
         else:
             strength = alphabet[1]
-        strength_float = {
-            'A': 0.2,
-            'B': 0.4,
-            'C': 0.6,
-            'D': 0.8,
-            'E': 1.0
-        }.get(strength)
+        if strength == '':
+            strength_float = 0.5
+        else:
+            strength_float = {
+                'A': 0.2,
+                'B': 0.4,
+                'C': 0.6,
+                'D': 0.8,
+                'E': 1.0
+            }.get(strength)
+        # print (code_expression, alphabet, len(alphabet))
         if pos == 0:
             codes[code - 1] = strength_float
             codes[code + 100] = strength_float
@@ -114,7 +120,7 @@ def embedding_translate(image_path):
             codes[code + 100] = strength_float
         else:
             print "Wrong!"
-    print codes
+    return codes
 
 
 def get_learning_rate_from_file(filename, epoch):
@@ -210,5 +216,9 @@ def _add_loss_summaries(total_loss):
 
     return loss_averages_op
 
+def test(file_name):
+    facs = load_facscodes();
+    print facs[file_name]
+
 if __name__ == '__main__':
-    load_facscodes()
+    test('bs000_CAU_A22A25_0')

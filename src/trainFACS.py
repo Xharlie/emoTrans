@@ -20,8 +20,8 @@ class args():
     model_def =  'models.inception_resnet_v1_2pic'
     logs_base_dir = '~/dev/emoTrans/'
     seed = 666
-    data_dir = HOME + "/datasets/BosphorusDB/train"
-    val_dir = HOME + "/datasets/BosphorusDB/val"
+    data_dir = HOME + "/datasets/BosphorusDB_extracted/train"
+    val_dir = HOME + "/datasets/BosphorusDB_extracted/val"
     random_crop = True
     image_size = 160
     batch_size = 90
@@ -29,7 +29,7 @@ class args():
     embedding_size = 200
     weight_decay = 0.1
     learning_rate_decay_epochs = 1.0
-    learning_rate = 0.1
+    learning_rate = 0.0001
     epoch_size = 1000
     learning_rate_decay_factor = 1.0
     optimizer = 'ADAGRAD'
@@ -62,22 +62,25 @@ def main():
 
         phase_train_placeholder = tf.placeholder(tf.bool, name='phase_train')
 
-        image_paths_pair_placeholder = tf.placeholder(tf.string, name='image_source_paths')
+        image_paths_source_placeholder = tf.placeholder(tf.string, name='image_source_paths')
 
-        labels_placeholder = tf.placeholder(tf.float32, name='labels')
+        image_paths_target_placeholder = tf.placeholder(tf.string, name='image_target_paths')
+
+        labels_placeholder = tf.placeholder(tf.float32, shape=(None, args.embedding_size), name='labels')
 
         input_queue = data_flow_ops.FIFOQueue(capacity=100000,
-                                              dtypes=[tf.string, tf.float32],
-                                              shapes=[(2,), (1,)],
+                                              dtypes=[tf.string, tf.string, tf.float32],
+                                              shapes=[(), (), (args.embedding_size)],
                                               shared_name=None, name=None)
-        enqueue_op = input_queue.enqueue_many([image_paths_pair_placeholder, labels_placeholder])
+        enqueue_op = input_queue.enqueue_many([image_paths_source_placeholder,
+                                   image_paths_target_placeholder, labels_placeholder])
 
         nrof_preprocess_threads = 4
         images_pair_and_labels = []
         for _ in range(nrof_preprocess_threads):
-            filenames, label = input_queue.dequeue()
+            source_filename, target_filename, label = input_queue.dequeue()
             processed_pair = []
-            for filename in tf.unstack(filenames):
+            for filename in [source_filename, target_filename]:
                 file_contents = tf.read_file(filename)
                 image = tf.image.decode_png(file_contents)
 
@@ -92,11 +95,11 @@ def main():
                 # pylint: disable=no-member
                 image.set_shape((args.image_size, args.image_size, 3))
                 processed_pair.append(tf.image.per_image_standardization(image))
-            images_pair_and_labels.append([[processed_pair[0]], [processed_pair[1]], label])
+            images_pair_and_labels.append([[processed_pair[0]], [processed_pair[1]], [label]])
         source_batch, target_batch, labels_batch = tf.train.batch_join(
             images_pair_and_labels, batch_size=batch_size_placeholder,
             shapes=[(args.image_size, args.image_size, 3),
-                    (args.image_size, args.image_size, 3), ()], enqueue_many=True,
+                    (args.image_size, args.image_size, 3), (args.embedding_size)], enqueue_many=True,
             capacity=4 * nrof_preprocess_threads * args.batch_size,
             allow_smaller_final_batch=True)
         prelogits, _ = network.inference(source_batch, target_batch, args.keep_probability,
@@ -152,7 +155,8 @@ def main():
                 step = sess.run(global_step, feed_dict=None)
                 epoch = step // args.epoch_size
                 # Train for one epoch
-                train(args, sess, train_set, epoch, image_paths_pair_placeholder,
+                train(args, sess, train_set, epoch, image_paths_source_placeholder,
+                      image_paths_target_placeholder,
                       labels_placeholder, labels_batch,batch_size_placeholder,
                       learning_rate_placeholder, phase_train_placeholder, enqueue_op,
                       input_queue, global_step,embeddings, total_loss, train_op,
@@ -165,15 +169,16 @@ def main():
 
                 # Evaluate on itself
                 if args.val_dir:
-                    evaluate(sess, enqueue_op, image_paths_pair_placeholder, labels_placeholder,labels_batch,
+                    evaluate(sess, enqueue_op, image_paths_source_placeholder,
+                      image_paths_target_placeholder, labels_placeholder,labels_batch,
                              phase_train_placeholder, batch_size_placeholder, embeddings, trans_loss,
                              labels_batch, args.val_dir, args.lfw_batch_size, log_dir,
                              step, summary_writer)
     sess.close()
 
 
-def train(args, sess, dataset, epoch, image_paths_placeholder, labels_placeholder,
-          labels_batch, batch_size_placeholder, learning_rate_placeholder,
+def train(args, sess, dataset, epoch, image_paths_source_placeholder, image_paths_target_placeholder,
+          labels_placeholder,labels_batch, batch_size_placeholder, learning_rate_placeholder,
           phase_train_placeholder, enqueue_op, input_queue, global_step,
           embeddings, loss, train_op, summary_op, summary_writer,
           learning_rate_schedule_file, embedding_size, trans_loss):
@@ -185,14 +190,14 @@ def train(args, sess, dataset, epoch, image_paths_placeholder, labels_placeholde
         lr = utility.get_learning_rate_from_file(learning_rate_schedule_file, epoch)
     while batch_number < args.epoch_size:
         # Sample people randomly from the dataset
-        image_paths_pair, label_trans_array = \
-            utility.sample_pair(dataset, args.batch_size, args.people_per_batch);
+        image_source_paths, image_target_paths, label_trans_array = \
+            utility.sample_pair(args.embedding_size, dataset, args.batch_size, args.people_per_batch);
 
         print('Running forward pass on sampled images: ', end='')
         start_time = time.time()
 
-        sess.run(enqueue_op, {image_paths_placeholder: image_paths_pair
-            , labels_placeholder: label_trans_array})
+        sess.run(enqueue_op, {image_paths_source_placeholder: image_source_paths,
+                      image_paths_target_placeholder: image_target_paths, labels_placeholder: label_trans_array})
         start_time = time.time()
         feed_dict = {batch_size_placeholder: batch_size, learning_rate_placeholder: lr,
                      phase_train_placeholder: True}
@@ -237,9 +242,9 @@ def save_variables_and_metagraph(sess, saver, summary_writer, model_dir, model_n
   #                            phase_train_placeholder, batch_size_placeholder, embeddings,
   #                            labels_batch, args.val_dir, args.lfw_batch_size, log_dir,
   #                            step, summary_writer)
-def evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder, labels_batch,
-             phase_train_placeholder, batch_size_placeholder, embeddings, trans_loss,
-             labels, image_paths, batch_size, nrof_folds, log_dir, step, summary_writer):
+def evaluate(sess, enqueue_op, image_paths_source_placeholder, image_paths_target_placeholder,
+         labels_placeholder, labels_batch,phase_train_placeholder, batch_size_placeholder, embeddings,
+         trans_loss, labels, image_paths, batch_size, nrof_folds, log_dir, step, summary_writer):
     start_time = time.time()
     # Run forward pass to calculate embeddings
     print('Runnning forward pass on validation images')
@@ -250,11 +255,11 @@ def evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder, labe
     sumloss = 0
     while batch_number < args.validation_batch_num:
         # Sample people randomly from the dataset
-        image_paths_pair, label_trans_array = \
-            utility.sample_pair(dataset, batch_size, args.people_per_batch);
+        image_source_paths, image_target_paths, label_trans_array = \
+            utility.sample_pair(args.embedding_size, dataset, batch_size, args.people_per_batch);
 
-        sess.run(enqueue_op, {image_paths_placeholder: image_paths_pair
-            , labels_placeholder: label_trans_array})
+        sess.run(enqueue_op, {image_paths_source_placeholder: image_source_paths,
+                      image_paths_target_placeholder: image_target_paths, labels_placeholder: label_trans_array})
         start_time = time.time()
         feed_dict = {batch_size_placeholder: batch_size, phase_train_placeholder: False}
         err, emb, lab = sess.run([trans_loss, embeddings, labels_batch],
