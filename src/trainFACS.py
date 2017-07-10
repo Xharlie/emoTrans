@@ -26,6 +26,7 @@ class args():
     random_crop = True
     image_size = 160
     batch_size = 90
+    val_batch_size = 90
     keep_probability = 1.0
     embedding_size = 200
     weight_decay = 0.00001
@@ -35,7 +36,7 @@ class args():
     learning_rate_decay_factor = 1.0
     optimizer = 'ADAGRAD'
     moving_average_decay = 0.9999
-    gpu_memory_fraction = 1.0
+    gpu_memory_fraction = 0.90
     pretrained_model = None
     max_nrof_epochs = 500
     people_per_batch = None
@@ -178,7 +179,7 @@ def main():
                     evaluate(sess, enqueue_op, image_paths_source_placeholder,
                       image_paths_target_placeholder, labels_placeholder,labels_batch,
                              phase_train_placeholder, batch_size_placeholder, embeddings, trans_loss,
-                             labels_batch, args.val_dir, args.lfw_batch_size, log_dir,
+                             labels_batch, args.val_dir, args.val_batch_size, log_dir,
                              step, summary_writer)
     sess.close()
 
