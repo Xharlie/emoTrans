@@ -18,7 +18,8 @@ HOME = os.path.expanduser("~")
 
 class args():
     model_def =  'models.inception_resnet_v1_2pic'
-    logs_base_dir = '~/dev/emoTrans/'
+    logs_base_dir = '~/dev/emoTrans/logs'
+    models_base_dir = '~/dev/emoTrans'
     seed = 666
     data_dir = HOME + "/datasets/BosphorusDB_extracted/train"
     val_dir = HOME + "/datasets/BosphorusDB_extracted/val"
@@ -27,7 +28,7 @@ class args():
     batch_size = 90
     keep_probability = 1.0
     embedding_size = 200
-    weight_decay = 0.1
+    weight_decay = 0.00001
     learning_rate_decay_epochs = 1.0
     learning_rate = 0.0001
     epoch_size = 1000
@@ -47,6 +48,11 @@ def main():
     network = importlib.import_module(args.model_def, 'inference')
     subdir = datetime.strftime(datetime.now(), '%Y%m%d-%H%M%S')
     log_dir = os.path.join(os.path.expanduser(args.logs_base_dir), subdir)
+    if not os.path.isdir(log_dir):  # Create the log directory if it doesn't exist
+        os.makedirs(log_dir)
+    model_dir = os.path.join(os.path.expanduser(args.models_base_dir), subdir)
+    if not os.path.isdir(model_dir):  # Create the model directory if it doesn't exist
+        os.makedirs(model_dir)
     np.random.seed(seed=args.seed)
     train_set = utility.get_dataset(args.data_dir)
 
@@ -165,7 +171,7 @@ def main():
 
                 # Save variables and the metagraph if it doesn't exist already
                 save_variables_and_metagraph(sess, saver,
-                     summary_writer, args.model_dir, subdir, step)
+                     summary_writer, model_dir, subdir, step)
 
                 # Evaluate on itself
                 if args.val_dir:
