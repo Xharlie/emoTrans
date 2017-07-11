@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
 from datetime import datetime
 import os.path
 import time
@@ -11,10 +10,12 @@ import numpy as np
 import importlib
 import itertools
 import argparse
-import utility
 from tensorflow.python.ops import data_flow_ops
 
 HOME = os.path.expanduser("~")
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(dir_path)
+import utility
 
 class args():
     model_def =  'models.inception_resnet_v1_2pic'
@@ -23,7 +24,7 @@ class args():
     seed = 666
     data_dir = HOME + "/datasets/BosphorusDB_extracted/train"
     val_dir = HOME + "/datasets/BosphorusDB_extracted/val"
-    random_crop = True
+    random_crop = False
     image_size = 160
     batch_size = 90
     val_batch_size = 90
