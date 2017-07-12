@@ -57,10 +57,16 @@ def sample_pair(embedding_size, dataset, batch_size, people_per_batch):
         nrof_images_in_class = len(dataset[class_index])
         pair_per_people = min(batch_size - len(image_source_paths), avg_pair_per_people)
         for j in range(pair_per_people):
-            indice1 = random.randint(0, nrof_images_in_class - 1)
-            indice2 = random.randint(0, nrof_images_in_class - 1)
-            image_source_paths += [dataset[class_index].image_paths[indice1]]
-            image_target_paths += [dataset[class_index].image_paths[indice2]]
+            image_path1 = ""
+            image_path2 = ""
+            while image_path1.find("png") == -1:
+                indice1 = random.randint(0, nrof_images_in_class - 1)
+                image_path1 = dataset[class_index].image_paths[indice1]
+            while image_path2.find("png") == -1:
+                indice2 = random.randint(0, nrof_images_in_class - 1)
+                image_path2 = dataset[class_index].image_paths[indice1]
+            image_source_paths += [image_path1]
+            image_target_paths += [image_path2]
             label_calculated_result += [calculate_labels(embedding_size, codes_array,
                 dataset[class_index].image_paths[indice1], dataset[class_index].image_paths[indice2])]
         i += 1
