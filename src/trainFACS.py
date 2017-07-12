@@ -32,7 +32,7 @@ class args():
     embedding_size = 200
     weight_decay = 0.00001
     learning_rate_decay_epochs = 1.0
-    learning_rate = 0.0001
+    learning_rate = 0.001
     epoch_size = 1000
     learning_rate_decay_factor = 1.0
     optimizer = 'ADAGRAD'

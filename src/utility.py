@@ -145,7 +145,7 @@ def get_learning_rate_from_file(filename, epoch):
 def trans_loss(embeddings, labels_batch):
     #Calculate the trans loss
     with tf.variable_scope('trans_loss'):
-        dist = tf.reduce_sum(tf.square(tf.subtract(embeddings, labels_batch)))
+        dist = tf.reduce_mean(tf.square(tf.subtract(embeddings, labels_batch)))
     return dist
 
 
