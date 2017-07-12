@@ -246,13 +246,15 @@ def save_variables_and_metagraph(sess, saver, summary_writer, model_dir, model_n
     summary.value.add(tag='time/save_metagraph', simple_value=save_time_metagraph)
     summary_writer.add_summary(summary, step)
 
-  # evaluate(sess, enqueue_op, image_paths_placeholder, labels_placeholder,
-  #                            phase_train_placeholder, batch_size_placeholder, embeddings,
-  #                            labels_batch, args.val_dir, args.lfw_batch_size, log_dir,
-  #                            step, summary_writer)
+
+# evaluate(sess, enqueue_op, image_paths_source_placeholder,
+#          image_paths_target_placeholder, labels_placeholder, labels_batch,
+#          phase_train_placeholder, batch_size_placeholder, embeddings, trans_loss,
+#          labels_batch, args.val_dir, args.val_batch_size, log_dir,
+#          step, summary_writer)
 def evaluate(sess, enqueue_op, image_paths_source_placeholder, image_paths_target_placeholder,
          labels_placeholder, labels_batch,phase_train_placeholder, batch_size_placeholder, embeddings,
-         trans_loss, labels, image_paths, batch_size, nrof_folds, log_dir, step, summary_writer):
+         trans_loss, labels, image_paths, batch_size, log_dir, step, summary_writer):
     start_time = time.time()
     # Run forward pass to calculate embeddings
     print('Runnning forward pass on validation images')
@@ -278,7 +280,7 @@ def evaluate(sess, enqueue_op, image_paths_source_placeholder, image_paths_targe
     avg_loss = sumloss / batch_number
 
 
-    print('Validation loss: %1.3f+-%1.3f' % avg_loss)
+    print('Validation loss: %1.3f' % avg_loss)
     val_time = time.time() - start_time
     # Add validation loss and accuracy to summary
     summary = tf.Summary()

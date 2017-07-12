@@ -83,6 +83,7 @@ def load_facscodes():
 def calculate_labels(embedding_size, codes_array, image_path1, image_path2):
     key1 = image_path1.split("/")[-1].split(".")[0]
     key2 = image_path2.split("/")[-1].split(".")[0]
+    # print image_path1,image_path2
     # print image_path1, key1, image_path2, key2
     calculate_codes_1 = embedding_translate(embedding_size, codes_array[key1])
     calculate_codes_2 = embedding_translate(embedding_size, codes_array[key2])
